@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>English Studio AI - GitHub Pages Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- MÃ KẾT NỐI API (Polyfill) -->
+  <script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwtPtSlOefqybWTgsEkMMWYNUmp_isozGIhQj4gnYj0YYXHpSLR5votxwcmdKwl_kiYww/exec";
+
+    window.google = {
+      script: {
+        get run() {
+          return {
+            _onSuccess: null,
+            _onFailure: null,
+            withSuccessHandler: function(cb) { this._onSuccess = cb; return this; },
+            withFailureHandler: function(cb) { this._onFailure = cb; return this; },
+            _callApi: function(action, payload) {
+              fetch(WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: action, payload: payload })
+              })
+              .then(r => r.json())
+              .then(res => {
+                if (res.success) { if (this._onSuccess) this._onSuccess(res.data); }
+                else { if (this._onFailure) this._onFailure(new Error(res.error)); }
+              })
+              .catch(err => { if (this._onFailure) this._onFailure(err); });
+            },
+            indexSend: function(payload) { this._callApi('indexSend', payload); },
+            lookupMeaningOrFlashcard: function(payload) { this._callApi('lookupMeaningOrFlashcard', payload); },
+            generatePractice: function(payload) { this._callApi('generatePractice', payload); },
+            replyPractice: function(payload) { this._callApi('replyPractice', payload); },
+            getVocabularyImage: function(sourceId, word) { this._callApi('getVocabularyImage', {sourceId, word}); }
+          };
+        }
+      }
+    };
+  </script>
+
+  <!-- CSS TỪ INDEX.HTML -->
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    .prose p { margin-bottom: 0.5rem; line-height: 1.6; }
+    .prose p:last-child { margin-bottom: 0; }
+    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.5rem; list-style-type: disc; }
+    .prose img { border-radius: 0.75rem; max-height: 280px; object-fit: cover; margin: 0.5rem 0; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+  </style>
+
+  <!-- CSS TỪ FLASHCARD.HTML -->
+  <style>
+    #view-flashcard * { box-sizing: border-box; }
+    #view-flashcard [hidden] { display: none !important; }
+    #view-flashcard { padding: 24px; font-family: Arial, sans-serif; background: #f0eaff; color: #071e50; }
+    #view-flashcard main { max-width: 1000px; margin: auto; }
+    #view-flashcard h1 { font-size: 24px; text-align: center; margin-bottom: 8px; }
+    #view-flashcard .intro { text-align: center; line-height: 1.5; margin-top: 0; color: #49258c; }
+    #view-flashcard .control-panel { background: #ffffff; border: 1px solid #dfd3ff; border-radius: 20px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(136, 116, 186, 0.12); }
+    #view-flashcard .ai-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    #view-flashcard .ai-bar input { flex: 1; min-width: 240px; padding: 12px 16px; border: 1px solid #d8d0e7; border-radius: 12px; background: #fcfaff; color: #102448; font: inherit; font-size: 16px; }
+    #view-flashcard .ai-bar input:focus { outline: 2px solid #9850ee; background: #fff; }
+    #view-flashcard .manual-toggle { margin-top: 12px; border-top: 1px dashed #e5dcfa; padding-top: 10px; }
+    #view-flashcard .manual-toggle summary { cursor: pointer; color: #6b4ca5; font-size: 14px; font-weight: bold; user-select: none; }
+    #view-flashcard textarea { width: 100%; height: 110px; margin-top: 10px; padding: 12px; border: 1px solid #d8d0e7; border-radius: 12px; background: #fff; color: #102448; font: inherit; resize: vertical; }
+    #view-flashcard button { padding: 12px 18px; border: 0; border-radius: 12px; background: #8874ba; color: #fff; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.2s, opacity 0.2s; }
+    #view-flashcard button:hover:not(:disabled) { background: #735da8; }
+    #view-flashcard button:disabled { opacity: 0.4; cursor: default; }
+    #view-flashcard button:focus-visible, #view-flashcard .card:focus-visible { outline: 3px solid #7300df; outline-offset: 5px; }
+    #view-flashcard .btn-ai { background: linear-gradient(120deg, #7c4dff, #9850ee); white-space: nowrap; }
+    #view-flashcard .btn-ai:hover:not(:disabled) { background: linear-gradient(120deg, #6937f5, #8338ec); }
+    #view-flashcard .load { width: 100%; margin-top: 10px; }
+    #view-flashcard #message { min-height: 24px; text-align: center; line-height: 1.5; font-weight: bold; }
+    #view-flashcard .scene { perspective: 1600px; }
+    #view-flashcard .card { position: relative; width: 100%; height: 740px; transition: transform 0.55s; transform-style: preserve-3d; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #view-flashcard .card.flipped { transform: rotateY(180deg); }
+    #view-flashcard .face { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #fff; border-radius: 36px; background: #fff; box-shadow: 0 8px 24px #aa91eb55; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+    #view-flashcard .back { transform: rotateY(180deg); }
+    #view-flashcard .topic { display: flex; align-items: center; justify-content: center; flex-shrink: 0; min-height: 88px; padding: 24px 30px; background: linear-gradient(120deg, #a28bc6, #b098d0); color: #fff; font-size: 27px; font-weight: bold; letter-spacing: 4px; text-align: center; overflow-wrap: anywhere; }
+    #view-flashcard #frontFace .topic { justify-content: flex-start; text-align: left; }
+    #view-flashcard .picture { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 22px 30px 0; background: linear-gradient(#fff, #fcfaff); }
+    #view-flashcard .picture img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+    #view-flashcard #noImage { padding: 20px; color: #76658f; font-size: 18px; line-height: 1.6; text-align: center; }
+    #view-flashcard .question { flex-shrink: 0; padding: 14px 20px; color: #061c50; font-size: clamp(34px, 6vw, 70px); font-weight: bold; line-height: 1.15; text-align: center; overflow-wrap: anywhere; }
+    #view-flashcard .hint { flex-shrink: 0; padding: 18px 15px 24px; color: #7300df; font-size: 23px; text-align: center; }
+    #view-flashcard .answer { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; padding: 35px; overflow: auto; cursor: auto; }
+    #view-flashcard .answer-content { margin-block: auto; }
+    #view-flashcard .vocab-grid { display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 30px; }
+    #view-flashcard .word-panel { min-width: 0; padding-right: 25px; border-right: 2px solid #dfd3ff; }
+    #view-flashcard #word { color: #071e50; font-family: Georgia, "Times New Roman", serif; font-size: clamp(44px, 7vw, 100px); font-weight: bold; line-height: 1.1; overflow-wrap: anywhere; }
+    #view-flashcard .word-details { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 25px; }
+    #view-flashcard #pos { padding: 10px 22px; border-radius: 50px; background: #f0eaff; color: #4a258b; font-size: 22px; font-weight: bold; overflow-wrap: anywhere; }
+    #view-flashcard .pronunciation-pill { display: inline-flex; align-items: center; gap: 10px; max-width: 100%; padding: 7px 14px; border: 2px solid #b77aff; border-radius: 50px; }
+    #view-flashcard #speak { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 3px 9px 3px 0; border-right: 1px solid #dfd3ff; border-radius: 0; background: transparent; color: #9850ee; }
+    #view-flashcard #speak svg { width: 28px; height: 28px; }
+    #view-flashcard #pronunciation { min-width: 0; font-size: 23px; overflow-wrap: anywhere; }
+    #view-flashcard #meaning { display: flex; align-items: center; justify-content: center; min-height: 180px; padding: 25px; border-radius: 30px; background: #f2ebff; color: #7000c9; font-family: Georgia, "Times New Roman", serif; font-size: clamp(28px, 4vw, 48px); font-weight: bold; line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+    #view-flashcard .example-block { margin-top: 45px; padding-top: 30px; border-top: 2px solid #dfd3ff; display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; row-gap: 14px; align-items: baseline; text-align: left; }
+    #view-flashcard .example-label { grid-column: 1; grid-row: 1; margin: 0; white-space: nowrap; color: #7000c9; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: bold; line-height: 1.4; text-decoration: underline; }
+    #view-flashcard .example-en { grid-column: 2; grid-row: 1; min-width: 0; font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; }
+    #view-flashcard #exampleVi { grid-column: 2; grid-row: 2; min-width: 0; margin-top: 0; color: #49258c; font-size: 30px; line-height: 1.5; text-align: left; overflow-wrap: anywhere; }
+    #view-flashcard nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+    #view-flashcard #counter { font-weight: bold; white-space: nowrap; }
+    #view-flashcard .instructions { text-align: center; line-height: 1.5; margin: 12px 0 20px; font-size: 18px; }
+    #view-flashcard .translate-instructions { display: inline-block; width: auto; margin-left: 8px; padding: 4px 8px; background: transparent; color: #7000c9; font: inherit; text-decoration: underline; vertical-align: baseline; }
+    #view-flashcard #instructionVi { display: block; margin-top: 8px; color: #49258c; }
+    #view-flashcard #backFace .topic { gap: 26px; background: linear-gradient(120deg, #a98bd7, #9d7ed0); }
+    #view-flashcard #backFace .topic::before, #view-flashcard #backFace .topic::after { content: ""; width: 85px; max-width: 14%; height: 2px; background: #fff; }
+    #view-flashcard #backFace .answer { position: relative; padding-top: 95px; }
+    #view-flashcard #backFace .answer::before, #view-flashcard #backFace .answer::after { content: ""; position: absolute; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 116 52'%3E%3Cpath fill='%23eee5ff' d='M1 51C1 37 12 27 25 31C28 14 40 2 57 2C74 2 87 14 90 31C104 24 115 36 115 51Z'/%3E%3C/svg%3E") center / contain no-repeat; pointer-events: none; }
+    #view-flashcard #backFace .answer::before { left: 25px; top: 8px; width: 116px; height: 52px; }
+    #view-flashcard #backFace .answer::after { left: 130px; top: 55px; width: 94px; height: 42px; }
+    #view-flashcard #backFace .word-panel { border-color: #b77aff; }
+    #view-flashcard #backFace #pos { color: #7000c9; }
+    #view-flashcard #backFace #meaning { background: linear-gradient(135deg, #f4edff, #eee5fc); }
+    #view-flashcard #backFace .example-block { border: 0; border-radius: 26px; background: #f0e8fc; padding: 25px 28px; margin-top: 30px; }
+    #view-flashcard #backFace #exampleVi { font-family: Georgia, "Times New Roman", serif; color: #7000c9; }
+    #view-flashcard #backFace .example-label { font-family: Georgia, "Times New Roman", serif; }
+    #view-flashcard .download-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 18px; }
+    #view-flashcard #downloadStatus { text-align: center; line-height: 1.5; }
+    #view-flashcard #study .scene { width: 100%; height: 605px; }
+    #view-flashcard #study .card-viewport { width: 1000px; height: 605px; transform-origin: top left; }
+    #view-flashcard #study .card { width: 1000px; height: 605px; }
+    #view-flashcard #study .face { border-radius: 36px; }
+    #view-flashcard #study .topic { min-height: 88px; padding: 24px 30px; font-size: 27px; letter-spacing: 4px; }
+    #view-flashcard #study .picture { padding: 22px 30px 0; }
+    #view-flashcard #study .question { font-size: 60px; padding: 14px 20px; }
+    #view-flashcard #study .hint { padding: 12px 15px 18px; font-size: 21px; }
+    #view-flashcard #study #backFace > .hint { display: none; }
+    #view-flashcard #study #backFace .answer { padding: 110px 35px 20px; }
+    #view-flashcard #study .answer-content { margin: 0; }
+    #view-flashcard #study .vocab-grid { grid-template-columns: 1.1fr 1fr; gap: 30px; height: 180px; }
+    #view-flashcard #study .word-panel { padding-right: 25px; border-right: 2px solid #b77aff; text-align: left; height: 180px; }
+    #view-flashcard #study #word { font-size: 115px; line-height: 1.05; max-height: 125px; overflow-wrap: anywhere; }
+    #view-flashcard #study .word-details { justify-content: flex-start; gap: 10px; margin-top: 12px; }
+    #view-flashcard #study #pos { padding: 8px 20px; font-size: 22px; }
+    #view-flashcard #study #pronunciation { font-size: 23px; }
+    #view-flashcard #study #meaning { min-height: 180px; height: 180px; padding: 20px; font-size: 48px; line-height: 1.25; }
+    #view-flashcard #study #backFace .example-block { margin-top: 50px; padding: 20px 25px; height: 150px; column-gap: 12px; row-gap: 8px; grid-template-rows: 1fr 1fr; }
+    #view-flashcard #study .example-en, #view-flashcard #study #exampleVi { font-size: 30px; line-height: 1.35; }
+    #view-flashcard #study .example-label { font-size: 25px; }
+    #view-flashcard #study #backFace .answer::before { left: 25px; top: 8px; width: 116px; height: 52px; }
+    #view-flashcard #study #backFace .answer::after { left: 130px; top: 55px; width: 94px; height: 42px; }
+    #view-flashcard #study .download-actions { justify-content: flex-start; margin: 0 0 12px; }
+    #view-flashcard #downloadFront, #view-flashcard #downloadBack { background: #245a8d; color: #fff; }
+    #view-flashcard #downloadFront:hover:not(:disabled), #view-flashcard #downloadBack:hover:not(:disabled) { background: #1a456f; }
+    #view-flashcard #study #backFace #exampleVi { font-family: Arial, Tahoma, "Segoe UI", sans-serif; font-style: normal; letter-spacing: normal; font-variant-ligatures: none; }
+    #view-flashcard #example strong, #view-flashcard #exampleVi strong { font-weight: 700; font-style: italic; }
+    #view-flashcard #study #backFace .answer::before, #view-flashcard #study #backFace .answer::after { animation: cloud-pair-drift 20s linear infinite; will-change: transform, opacity; }
+    @keyframes cloud-pair-drift { 0% { transform: translateX(0); opacity: 1; } 75% { transform: translateX(750px); opacity: 1; } 82% { transform: translateX(820px); opacity: 0; } 82.01% { transform: translateX(-180px); opacity: 0; } 100% { transform: translateX(0); opacity: 1; } }
+    @media (max-width: 600px) { #view-flashcard h1 { font-size: 21px; } #view-flashcard .ai-bar input, #view-flashcard .ai-bar button { width: 100%; } #view-flashcard .download-actions button { font-size: 14px; } #view-flashcard nav button { padding: 12px; font-size: 14px; } }
+    @media (prefers-reduced-motion: reduce) { #view-flashcard .card, #view-flashcard #study #backFace .answer::before, #view-flashcard #study #backFace .answer::after { transition: none; animation: none; } }
+  </style>
+
+  <!-- CSS TỪ PRACTICE.HTML VÀ MULTIPLE CHOICE -->
+  <style>
+    :root { --purple: #542a80; --accent: #602496; --light: #e9e0f5; --line: #cdc0e8; --ink: #171735; }
+    #view-practice { padding: 20px; background: #edf3f1; font-family: Arial, sans-serif; color: #183e43; }
+    #view-practice .practice-container { max-width: 720px; margin: auto; background: #fff; border: 1px solid #d2e3e3; border-radius: 24px; overflow: hidden; box-shadow: 0 12px 35px #174c4c12; }
+    #view-practice .top { background: #d8eee7; padding: 22px 28px; border-bottom: 1px solid #b9dcd0; text-align: center; }
+    #view-practice .top h2 { font-size: 25px; margin: 12px 0 8px; color: #103b46; font-weight: 700; }
+    #view-practice .content { padding: 24px; background: #f3fffb; }
+    #view-practice .practice-context { display: grid; gap: 14px; margin-bottom: 20px; }
+    #view-practice .practice-context label { display: grid; gap: 6px; font-size: 14px; font-weight: 700; color: #244c4c; text-align: left; }
+    #view-practice .practice-context input, #view-practice .practice-context textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #b5d1c5; border-radius: 9px; background: white; color: #183e43; font: inherit; }
+    #view-practice .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    #view-practice .choice { background: #e1f3ee; border: 1px solid #b5dcd0; border-radius: 13px; padding: 14px; text-align: left; color: #244c4c; display: flex; align-items: center; gap: 10px; min-height: 64px; font-size: 14px; cursor: pointer; transition: background 0.16s; }
+    #view-practice .choice:hover { background: #d5eee6; }
+    #view-practice .choice[aria-pressed="true"] { background: #67c4ad; border-color: #247f69; color: #103f35; font-weight: bold; box-shadow: inset 0 0 0 1px #247f69; }
+    #view-practice .foot { padding: 18px 24px; background: #e0f4ef; border-top: 1px solid #beded2; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    #view-practice .go { border: 0; border-radius: 11px; background: #008a7d; color: #fff; padding: 13px 22px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 3px 8px #006b6730; }
+    #view-practice .go:disabled { opacity: 0.5; cursor: not-allowed; }
+    #view-practice .output-box { margin-top: 20px; padding: 20px; background: #fff; border: 1px solid #d5e4e2; border-radius: 16px; line-height: 1.6; }
+    #view-practice .prose p { margin-bottom: 0.75rem; }
+    #view-practice .prose img { max-width: 100%; border-radius: 10px; margin: 10px 0; }
+    
+    /* MULTIPLE CHOICE UI STYLES */
+    #practice-designs .navy-jewel .vocabulary-block .choices{gap:10px 20px}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice{background:#fbfdfc;border:0;border-bottom:1px solid #dfe9e6;border-radius:11px;box-shadow:none;min-height:98px;padding:13px 36px 13px 13px;transition:background .18s,box-shadow .18s}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice:hover{background:#f2f8f5;transform:none}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice[aria-pressed="true"]{background:#eaf6f0;border:0;border-bottom:1px solid #00a78d;box-shadow:inset 4px 0 0 #438e79;color:#1d726c}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice[aria-pressed="true"] .label{color:#1d726c}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice .ico{background-color:#dff3eb;border-radius:14px}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice[aria-pressed="true"] .ico{background-color:#cdeade}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice .tick{top:50%;right:12px;transform:translateY(-50%);border-radius:5px;width:21px;height:21px;background:transparent;color:transparent}
+    #practice-designs .navy-jewel .vocabulary-block .choices .choice[aria-pressed="true"] .tick{background:#009e87;color:#fff}
+    #practice-designs .practice-context{display:grid;gap:14px;margin:8px 0 24px}#practice-designs .practice-context label{display:grid;gap:8px;font-size:14px;font-weight:700;color:#244c4c}#practice-designs .practice-context input,#practice-designs .practice-output input:not([type=radio]),#practice-designs .practice-output textarea{box-sizing:border-box;width:100%;font:inherit;padding:12px;border:1px solid #b5d1c5;border-radius:9px;background:white;color:#183e43}#practice-designs .practice-output{padding:24px;border-top:1px solid #c6ded4;background:#fff;line-height:1.65}#practice-designs .practice-output h3{font-size:23px;margin-top:0}#practice-designs .practice-prose{white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0}#practice-designs .exercise-question{min-width:0;border:1px solid #d5e4e2;border-radius:12px;padding:16px;margin:18px 0}#practice-designs .exercise-question legend{font-weight:700;padding:0 6px}#practice-designs .answer-option{display:flex;align-items:baseline;gap:9px;margin:8px 0;padding:9px;background:#f3f8f5;border-radius:8px}#practice-designs .practice-action{font:inherit;border:0;background:#1c5048;color:white;padding:12px 20px;border-radius:9px;margin:12px 0}#practice-designs .practice-follow{display:grid;border-top:1px solid #d5e4e2;margin-top:24px;padding-top:18px}#practice-designs .practice-output img{max-width:100%;height:auto;border-radius:10px}#practice-designs .practice-output audio{width:100%;margin:15px 0}#practice-designs button:disabled{opacity:.6}#practice-designs .result{overflow-wrap:anywhere}
+    #practice-designs .results-table-wrap{overflow-x:auto;margin:12px 0}
+    #practice-designs .results-table-wrap table{width:100%;border-collapse:collapse;background:#fff}
+    #practice-designs .results-table-wrap th,#practice-designs .results-table-wrap td{border:1px solid #bed6cc;padding:10px 12px;text-align:left}
+    #practice-designs .results-table-wrap th{background:#cce9de;color:#193c48}
+    #practice-designs .exercise-submit:disabled{opacity:.55;cursor:not-allowed}
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-20">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-semibold text-sm shadow-sm">
+          AI
+        </div>
+        <span class="font-semibold text-slate-900 tracking-tight text-base">English Studio</span>
+      </div>
+      <!-- Menu chuyển đổi 4 chế độ -->
+      <nav class="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl overflow-x-auto">
+        <button onclick="switchView('router')" id="tab-btn-router" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-900 shadow-sm transition whitespace-nowrap">
+          Trợ lý AI
+        </button>
+        <button onclick="switchView('meaning')" id="tab-btn-meaning" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition whitespace-nowrap">
+          Tra nghĩa từ
+        </button>
+        <button onclick="switchView('flashcard')" id="tab-btn-flashcard" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition whitespace-nowrap">
+          Flashcard
+        </button>
+        <button onclick="switchView('practice')" id="tab-btn-practice" class="nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition whitespace-nowrap">
+          Luyện tập
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- NỘI DUNG CHÍNH -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col">
+    
+    <!-- 1. KHUNG CHAT TRỢ LÝ TRUNG TÂM -->
+    <section id="view-router" class="view-panel flex-1 flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden h-[80vh]">
+      <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div class="flex items-center gap-2 text-xs text-slate-500">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>Trình độ mặc định: <strong class="text-slate-700">A2–B1</strong></span>
+        </div>
+        <button onclick="resetRouterChat()" class="text-xs font-medium text-slate-500 hover:text-slate-800 px-2.5 py-1 rounded-lg hover:bg-slate-200/50 transition">
+          + Hội thoại mới
+        </button>
+      </div>
+      <div id="routerChatBox" class="flex-1 p-5 overflow-y-auto space-y-4">
+        <div class="flex justify-start">
+          <div class="bg-slate-100/80 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%] prose">
+            Xin chào! Bạn có thể trò chuyện trực tiếp tại đây hoặc chọn các phím gợi ý nhanh bên dưới:
+          </div>
+        </div>
+        <div id="quickPrompts" class="flex flex-wrap gap-2 pt-1">
+          <button onclick="sendQuickPrompt('Giải thích nghĩa và cách dùng của từ: ')" class="text-xs bg-white border border-slate-200 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl transition shadow-2xs">
+            🔍 Tra nghĩa từ vựng
+          </button>
+          <button onclick="sendQuickPrompt('Tạo flashcard học từ vựng chủ đề: ')" class="text-xs bg-white border border-slate-200 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl transition shadow-2xs">
+            🗂️ Tạo Flashcard
+          </button>
+          <button onclick="sendQuickPrompt('Tạo bài tập Multiple Choice ôn tập chủ đề: ')" class="text-xs bg-white border border-slate-200 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl transition shadow-2xs">
+            📝 Bài tập Multiple Choice
+          </button>
+          <button onclick="sendQuickPrompt('Tạo bài tập Matching nối từ chủ đề: ')" class="text-xs bg-white border border-slate-200 hover:border-slate-400 text-slate-700 px-3 py-1.5 rounded-xl transition shadow-2xs">
+            🔗 Bài tập Matching
+          </button>
+        </div>
+      </div>
+      <div class="p-3.5 bg-white border-t border-slate-100">
+        <form onsubmit="handleRouterSubmit(event)" class="flex items-end gap-2">
+          <textarea id="routerInput" rows="1" placeholder="Nhập từ vựng, chủ đề hoặc yêu cầu bài tập..." required
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); handleRouterSubmit(event);}"
+            class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-slate-400 focus:bg-white transition resize-none max-h-32"></textarea>
+          <button id="routerSendBtn" type="submit"
+            class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl transition disabled:opacity-40 cursor-pointer">
+            Gửi
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2. KHUNG TRA NGHĨA TỪ -->
+    <section id="view-meaning" class="view-panel hidden flex-1">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 min-h-[75vh]">
+        <div id="meaning-container" class="flex flex-col gap-4">
+          <h3 class="text-xl font-bold text-slate-800">Tra cứu nghĩa từ vựng chuyên ngành</h3>
+          <div class="flex gap-2">
+            <input type="text" id="searchInput" placeholder="Nhập từ cần tra (VD: vehicle, traffic)..." class="flex-1 border border-slate-300 p-2 rounded-lg focus:outline-none focus:border-slate-500">
+            <button id="searchBtn" class="bg-slate-900 text-white px-4 py-2 rounded-lg font-medium hover:bg-slate-800 transition">Tra cứu AI</button>
+          </div>
+          <p id="searchStatus" class="text-sm text-slate-500"></p>
+          <div id="meaningResult" class="prose max-w-none mt-4 p-4 bg-slate-50 rounded-xl border border-slate-100"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. KHUNG FLASHCARD -->
+    <section id="view-flashcard" class="view-panel hidden flex-1">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 min-h-[75vh]">
+        <main>
+          <h1>📘 ESP AI CHATBOT - FLASHCARD</h1>
+          <p class="intro">
+            Nhập từ vựng hoặc chủ đề để tạo bộ thẻ từ Dify AI, hoặc dán JSON có sẵn.
+          </p>
+          <div class="control-panel">
+            <div class="ai-bar">
+              <input
+                id="aiPromptInput"
+                type="text"
+                placeholder="Nhập từ vựng hoặc chủ đề (VD: vehicle, licence plate, traffic...)"
+                aria-label="Nhập từ vựng hoặc chủ đề tạo Flashcard" />
+              <button id="askDifyBtn" class="btn-ai" type="button">
+                ✨ Tạo Flashcard
+              </button>
+            </div>
+            <details class="manual-toggle" id="manualDetails">
+              <summary>📋 Dán dữ liệu JSON từ Dify thủ công</summary>
+              <textarea
+                id="input"
+                placeholder='Dán JSON tại đây (ví dụ: {"cards": [...]})...'
+                aria-label="Dữ liệu flashcard"
+                spellcheck="false"></textarea>
+              <button class="load" id="load" type="button">
+                Mở bộ flashcard từ JSON
+              </button>
+            </details>
+          </div>
+          <p id="message" role="status" aria-live="polite"></p>
+          <div class="instructions" id="instructions" hidden>
+            <span lang="en">Click the card to flip it (or press Space/Enter). Use ← / → keys to switch cards. Click the speaker icon to hear the pronunciation.</span>
+            <button class="translate-instructions" id="translateInstructions" type="button"
+              lang="en" aria-controls="instructionVi" aria-expanded="false">Translate</button>
+            <span id="instructionVi" lang="vi" hidden>Bấm vào thẻ (hoặc nhấn phím Cách/Enter) để lật. Dùng phím mũi tên ← / → để chuyển thẻ. Bấm biểu tượng loa để nghe phát âm.</span>
+          </div>
+          <section id="study" hidden aria-label="Bộ thẻ từ vựng">
+            <div class="download-actions" aria-label="Download flashcard images">
+              <button id="downloadFront" type="button">↓ Download front (PNG)</button>
+              <button id="downloadBack" type="button">↓ Download back (PNG)</button>
+            </div>
+            <div class="scene" id="cardScene">
+              <div class="card-viewport" id="cardViewport">
+                <div class="card" id="card" tabindex="0" role="group" aria-label="Flashcard. Bấm hoặc nhấn Enter để lật thẻ.">
+                  <!-- MẶT TRƯỚC -->
+                  <div class="face" id="frontFace">
+                    <div class="topic" id="topic"></div>
+                    <div class="picture">
+                      <img id="image" alt="Hình minh hoạ từ vựng" hidden>
+                      <span id="noImage">Chưa có hình minh hoạ</span>
+                    </div>
+                    <div class="question" id="question"></div>
+                    <div class="hint">Tap to reveal</div>
+                  </div>
+                  <!-- MẶT SAU -->
+                  <div class="face back" id="backFace" aria-hidden="true" inert>
+                    <div class="topic">VOCABULARY</div>
+                    <div class="answer">
+                      <div class="answer-content">
+                        <div class="vocab-grid">
+                          <div class="word-panel">
+                            <div id="word"></div>
+                            <div class="word-details">
+                              <div id="pos"></div>
+                              <div class="pronunciation-pill">
+                                <button id="speak" type="button" tabindex="-1" aria-label="Nghe phát âm" title="Nghe phát âm">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M11 5 6 9H3v6h3l5 4V5Z" fill="currentColor" stroke="none"></path>
+                                    <path d="M15 8a6 6 0 0 1 0 8"></path>
+                                    <path d="M18 5a10 10 0 0 1 0 14"></path>
+                                  </svg>
+                                </button>
+                                <span id="pronunciation"></span>
+                              </div>
+                            </div>
+                          </div>
+                          <div id="meaning"></div>
+                        </div>
+                        <div class="example-block" id="exampleBlock">
+                          <div class="example-label" id="exampleLabel">Example:</div>
+                          <div class="example-en" id="exampleEnRow"><span id="example"></span></div>
+                          <div id="exampleVi" lang="vi"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="hint">Tap to return</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <nav aria-label="Chuyển thẻ">
+              <button id="previous" type="button">← Previous</button>
+              <span id="counter" aria-live="polite"></span>
+              <button id="next" type="button">Next →</button>
+            </nav>
+            <p id="downloadStatus" role="status" aria-live="polite"></p>
+          </section>
+        </main>
+      </div>
+    </section>
+
+    <!-- 4. KHUNG LUYỆN TẬP -->
+    <section id="view-practice" class="view-panel hidden flex-1">
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 min-h-[75vh]">
+        <div class="practice-container">
+          <div class="top">
+            <h2>🎯 Luyện Tập Từ Vựng Chuyên Ngành</h2>
+            <p class="text-sm text-slate-600">Chọn dạng bài tập mong muốn và nhập chủ đề hoặc từ vựng mục tiêu để Dify AI tạo bài tập trực tiếp.</p>
+          </div>
+          <div class="content">
+            <div class="practice-context">
+              <label>
+                Chủ đề bài tập (VD: Traffic rules, Emergency response...):
+                <input id="practiceTopic" type="text" placeholder="Nhập chủ đề..." />
+              </label>
+              <label>
+                Từ vựng mục tiêu (Tùy chọn, cách nhau bằng dấu phẩy):
+                <textarea id="practiceWords" rows="2" placeholder="vehicle, traffic, licence plate..."></textarea>
+              </label>
+            </div>
+            <div class="group-title font-bold text-teal-800 mb-2">Chọn các dạng bài luyện tập:</div>
+            <div class="choices" id="typeChoices">
+              <button type="button" class="choice" data-type="1" aria-pressed="false"><span class="ico">📝</span><span class="label">Trắc nghiệm (Multiple Choice)</span></button>
+              <button type="button" class="choice" data-type="2" aria-pressed="false"><span class="ico">🔗</span><span class="label">Ghép từ – Định nghĩa (Matching)</span></button>
+              <button type="button" class="choice" data-type="3" aria-pressed="false"><span class="ico">✏️</span><span class="label">Điền vào chỗ trống (Gap Fill)</span></button>
+              <button type="button" class="choice" data-type="4" aria-pressed="false"><span class="ico">🧩</span><span class="label">Kết hợp từ (Collocation)</span></button>
+              <button type="button" class="choice" data-type="5" aria-pressed="false"><span class="ico">🎯</span><span class="label">Chọn từ theo ngữ cảnh</span></button>
+              <button type="button" class="choice" data-type="6" aria-pressed="false"><span class="ico">📦</span><span class="label">Bài tập tổng hợp (Mixed)</span></button>
+              <button type="button" class="choice" data-type="7" aria-pressed="false"><span class="ico">🎧</span><span class="label">Luyện nghe (Listening)</span></button>
+              <button type="button" class="choice" data-type="8" aria-pressed="false"><span class="ico">🗣️</span><span class="label">Luyện nói (Speaking)</span></button>
+              <button type="button" class="choice" data-type="9" aria-pressed="false"><span class="ico">📖</span><span class="label">Luyện đọc (Reading)</span></button>
+              <button type="button" class="choice" data-type="10" aria-pressed="false"><span class="ico">✍️</span><span class="label">Luyện viết (Writing)</span></button>
+              <button type="button" class="choice col-span-2" data-type="11" aria-pressed="false"><span class="ico">✨</span><span class="label">Để chatbot tự chọn dạng phù hợp</span></button>
+            </div>
+          </div>
+          <div class="foot">
+            <span id="practiceStatus" class="text-xs text-teal-700 font-medium">Chưa chọn dạng bài nào.</span>
+            <button id="startPracticeBtn" class="go" type="button" disabled>Bắt đầu tạo bài tập</button>
+          </div>
+          <div id="practiceOutputBox" class="output-box hidden">
+            <div id="practiceContent" class="prose text-slate-800"></div>
+            <div class="mt-4 pt-4 border-t border-slate-200 flex gap-2">
+              <input id="practiceReplyInput" type="text" placeholder="Nhập đáp án hoặc câu trả lời của bạn..." class="flex-1 p-2 border border-teal-300 rounded-lg text-sm" />
+              <button id="practiceReplyBtn" class="bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold" type="button">Gửi trả lời</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- =============================== -->
+  <!-- JAVASCRIPT ĐIỀU KHIỂN GIAO DIỆN -->
+  <!-- =============================== -->
+  
+  <!-- Index.html Router Scripts -->
+  <script>
+    let routerSessionToken = sessionStorage.getItem('dify_router_token') || '';
+    function switchView(viewName) {
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
+      document.getElementById('view-' + viewName).classList.remove('hidden');
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = 'nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition whitespace-nowrap';
+      });
+      document.getElementById('tab-btn-' + viewName).className = 'nav-btn px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-900 shadow-sm transition whitespace-nowrap';
+    }
+    function sendQuickPrompt(prefix) {
+      const input = document.getElementById('routerInput');
+      input.value = prefix;
+      input.focus();
+    }
+    function appendRouterBubble(text, isUser = false, isError = false) {
+      const box = document.getElementById('routerChatBox');
+      const wrap = document.createElement('div');
+      wrap.className = isUser ? 'flex justify-end' : 'flex justify-start';
+      const bubble = document.createElement('div');
+      if (isUser) {
+        bubble.className = 'bg-slate-900 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] whitespace-pre-wrap';
+        bubble.textContent = text;
+      } else if (isError) {
+        bubble.className = 'bg-red-50 border border-red-200 text-red-700 rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm max-w-[85%]';
+        bubble.textContent = text;
+      } else {
+        bubble.className = 'bg-slate-100/80 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%] prose';
+        bubble.innerHTML = marked.parse(text);
+      }
+      wrap.appendChild(bubble);
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+      return wrap;
+    }
+    function handleRouterSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('routerInput');
+      const btn = document.getElementById('routerSendBtn');
+      const message = input.value.trim();
+      if (!message) return;
+      appendRouterBubble(message, true);
+      input.value = '';
+      btn.disabled = true;
+      const loading = appendRouterBubble('Đang xử lý...', false);
+      google.script.run
+        .withSuccessHandler(function(res) {
+          loading.remove();
+          if (res && res.sessionToken) {
+            routerSessionToken = res.sessionToken;
+            sessionStorage.setItem('dify_router_token', routerSessionToken);
+          }
+          appendRouterBubble(res.answer, false);
+          btn.disabled = false;
+        })
+        .withFailureHandler(function(err) {
+          loading.remove();
+          appendRouterBubble(err.message || 'Có lỗi xảy ra, vui lòng thử lại.', false, true);
+          btn.disabled = false;
+        })
+        .indexSend({ message: message, sessionToken: routerSessionToken });
+    }
+    function resetRouterChat() {
+      routerSessionToken = '';
+      sessionStorage.removeItem('dify_router_token');
+      const box = document.getElementById('routerChatBox');
+      box.innerHTML = '';
+      appendRouterBubble('Đã bắt đầu phiên hội thoại mới. Bạn muốn tra từ, tạo flashcard hay làm bài tập?', false);
+    }
+  </script>
+
+  <!-- Meaning.html Script -->
+  <script>
+    let meaningSessionToken = sessionStorage.getItem('dify_meaning_token') || '';
+    document.getElementById('searchBtn').onclick = () => {
+      const word = document.getElementById('searchInput').value.trim();
+      const status = document.getElementById('searchStatus');
+      if (!word) {
+        status.textContent = 'Vui lòng nhập từ vựng cần tra.';
+        return;
+      }
+      const btn = document.getElementById('searchBtn');
+      btn.disabled = true;
+      status.textContent = 'Đang gọi Dify AI và lấy ảnh từ Google Drive...';
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          status.textContent = '';
+          if (res && res.sessionToken) {
+            meaningSessionToken = res.sessionToken;
+            sessionStorage.setItem('dify_meaning_token', meaningSessionToken);
+          }
+          try {
+            const vocab = res.vocabulary || {};
+            // Nếu có hàm render thì gọi, không thì xuất nội dung thô (tương thích)
+            let resultHTML = res.bodyText || res.rawAnswer || res.answer;
+            if (res.imageDataUrl) {
+                resultHTML += `<br><div class="mt-4"><img src="${res.imageDataUrl}" class="rounded-xl max-w-sm shadow-md" alt="${word}"></div>`;
+            }
+            document.getElementById('meaningResult').innerHTML = marked.parse(resultHTML);
+          } catch (e) {
+            status.textContent = 'Lỗi xử lý dữ liệu: ' + e.message;
+          }
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          status.textContent = 'Lỗi kết nối: ' + (err.message || err);
+        })
+        .lookupMeaningOrFlashcard({ mode: 'meaning', word: word, sessionToken: meaningSessionToken });
+    };
+  </script>
+
+  <!-- Flashcard.html Script -->
+  <script>
+    'use strict';
+    let cards = [];
+    let index = 0;
+    let imageRequest = 0;
+    let difySessionToken = sessionStorage.getItem('dify_flashcard_token') || '';
+    const el = id => document.getElementById(id);
+    const asText = value => typeof value === 'string' ? value.normalize('NFC').trim() : '';
+    function setText(id, value) { el(id).textContent = asText(value); }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+    function stopSpeech() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
+    function setFlipped(value) {
+      const faceToHide = value ? el('frontFace') : el('backFace');
+      if (faceToHide.contains(document.activeElement)) el('card').focus({ preventScroll: true });
+      el('card').classList.toggle('flipped', value);
+      el('frontFace').setAttribute('aria-hidden', String(value));
+      el('backFace').setAttribute('aria-hidden', String(!value));
+      el('frontFace').inert = value; el('backFace').inert = !value;
+      el('speak').tabIndex = value ? 0 : -1;
+      if (!value) stopSpeech();
+    }
+    const cardImages = new WeakMap();
+    function loadImageElement(url, cors) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        if (cors) img.crossOrigin = 'anonymous';
+        const timer = setTimeout(() => { img.onload = img.onerror = null; reject(new Error('Quá thời gian tải hình.')); }, 15000);
+        img.onload = () => { clearTimeout(timer); resolve(img); };
+        img.onerror = () => { clearTimeout(timer); reject(new Error('Không tải được hình minh hoạ.')); };
+        img.src = url;
+      });
+    }
+    function resolveCardImage(item) {
+      if (cardImages.has(item)) return cardImages.get(item);
+      const task = (async () => {
+        const front = item.front || {}, back = item.back || {};
+        const sourceId = asText(item.source_id) || asText(front.source_id) || asText(back.source_id);
+        const word = asText(back.word) || asText(item.answer_key);
+        const hasServer = window.google && window.google.script && window.google.script.run;
+        let driveError = '';
+        if (hasServer && (sourceId || word)) {
+          try {
+            const dataUrl = await new Promise((resolve, reject) => {
+              google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getVocabularyImage(sourceId, word);
+            });
+            if (typeof dataUrl !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,/i.test(dataUrl)) throw new Error('Dữ liệu ảnh không hợp lệ.');
+            return await loadImageElement(dataUrl, false);
+          } catch (error) { driveError = error && error.message ? error.message : 'Không lấy được ảnh Drive.'; }
+        }
+        try { const url = new URL(asText(front.image_url)); if (url.protocol === 'https:') return await loadImageElement(url.href, false); } catch (_) {}
+        throw new Error(driveError || 'Chưa có hình minh hoạ phù hợp.');
+      })();
+      cardImages.set(item, task);
+      task.catch(() => { if (cardImages.get(item) === task) cardImages.delete(item); });
+      return task;
+    }
+    function loadPicture(item) {
+      const request = ++imageRequest;
+      const picture = el('image'); picture.hidden = true; picture.removeAttribute('src');
+      el('noImage').hidden = false; el('noImage').textContent = 'Đang tải hình minh hoạ…';
+      resolveCardImage(item).then(img => {
+        if (request !== imageRequest) return;
+        picture.src = img.src; picture.hidden = false; el('noImage').hidden = true;
+      }).catch(error => {
+        if (request !== imageRequest) return;
+        picture.hidden = true; el('noImage').hidden = false; el('noImage').textContent = error.message;
+      });
+    }
+    function updateCardLayout() {
+      const scene = el('cardScene'); if (!scene.clientWidth) return;
+      const scale = Math.min(1, scene.clientWidth / 1000);
+      el('cardViewport').style.transform = `scale(${scale})`;
+      scene.style.height = `${605 * scale}px`;
+      const word = el('word'); let size = 115; word.style.fontSize = `${size}px`;
+      while (size > 24 && (word.scrollHeight > 125 || word.scrollWidth > word.clientWidth)) word.style.fontSize = `${--size}px`;
+      const meaning = el('meaning'); size = 48; meaning.style.fontSize = `${size}px`;
+      while (size > 18 && meaning.scrollHeight > meaning.clientHeight) meaning.style.fontSize = `${--size}px`;
+      for (const id of ['exampleEnRow', 'exampleVi']) {
+        const node = el(id); size = 30; node.style.fontSize = `${size}px`;
+        while (size > 14 && (node.scrollHeight > 52 || node.scrollWidth > node.clientWidth)) node.style.fontSize = `${--size}px`;
+      }
+    }
+    function showCard() {
+      setFlipped(false);
+      const item = cards[index]; const front = item.front || {}; const back = item.back || {};
+      const word = asText(back.word) || asText(item.answer_key);
+      const pos = asText(back.part_of_speech), pronunciation = asText(back.pronunciation), meaning = asText(back.meaning_vi), exampleEn = asText(back.example_en), exampleVi = asText(back.example_vi);
+      setText('topic', asText(front.topic) || 'TRAFFIC & VEHICLES');
+      setText('question', asText(front.question) || 'What is this?');
+      setText('word', word); setText('pos', pos); setText('pronunciation', pronunciation); setText('meaning', meaning);
+      highlightText('example', exampleEn, word); highlightText('exampleVi', exampleVi, vietnameseTarget(exampleVi, meaning));
+      el('downloadStatus').textContent = '';
+      el('pos').hidden = !pos; el('pronunciation').hidden = !pronunciation; el('meaning').hidden = !meaning;
+      el('exampleLabel').hidden = !exampleEn && !exampleVi; el('exampleEnRow').hidden = !exampleEn; el('exampleVi').hidden = !exampleVi; el('exampleBlock').hidden = !exampleEn && !exampleVi;
+      el('speak').disabled = !word; el('speak').setAttribute('aria-label', word ? 'Nghe phát âm: ' + word : 'Nghe phát âm');
+      el('counter').textContent = `${index + 1} / ${cards.length}`;
+      el('previous').disabled = index === 0; el('next').disabled = index === cards.length - 1;
+      el('image').alt = asText(front.image_alt) || 'Hình minh hoạ từ vựng';
+      loadPicture(item); updateCardLayout();
+    }
+    function extractCardsFromResponse(rawString) {
+      let cleaned = String(rawString || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      if (!cleaned) throw new Error('Chưa có dữ liệu JSON.');
+      let data = null;
+      try { data = JSON.parse(cleaned); } catch (_) {
+        const matchObj = cleaned.match(/\{[\s\S]*\}/);
+        if (matchObj) data = JSON.parse(matchObj[0]); else throw new Error('Dữ liệu không đúng định dạng JSON.');
+      }
+      const cardList = Array.isArray(data) ? data : (data && Array.isArray(data.cards) ? data.cards : null);
+      if (!cardList || cardList.length === 0) throw new Error('Dữ liệu thiếu mảng "cards".');
+      return cardList;
+    }
+    function renderDeck(rawJsonText) {
+      el('instructions').hidden = true; el('instructionVi').hidden = true; el('translateInstructions').setAttribute('aria-expanded', 'false');
+      try {
+        const parsedCards = extractCardsFromResponse(rawJsonText);
+        stopSpeech(); cards = parsedCards; index = 0; el('study').hidden = false; el('message').textContent = ''; el('instructions').hidden = false; showCard();
+      } catch (error) {
+        stopSpeech(); imageRequest++; el('study').hidden = true; el('message').textContent = 'Lỗi mở thẻ: ' + error.message;
+      }
+    }
+    el('translateInstructions').onclick = () => { const translation = el('instructionVi'); translation.hidden = !translation.hidden; el('translateInstructions').setAttribute('aria-expanded', String(!translation.hidden)); };
+    el('load').onclick = () => { renderDeck(el('input').value); };
+    el('askDifyBtn').onclick = () => {
+      const rawInput = el('aiPromptInput').value.trim();
+      if (!rawInput) { el('message').textContent = 'Vui lòng nhập từ vựng/chủ đề.'; el('aiPromptInput').focus(); return; }
+      const queryText = /flashcard|thẻ/i.test(rawInput) ? rawInput : `Tạo flashcard cho: ${rawInput}`;
+      el('askDifyBtn').disabled = true; el('message').textContent = 'Đang gọi AI tạo Flashcard...';
+      google.script.run
+        .withSuccessHandler(res => {
+          el('askDifyBtn').disabled = false;
+          if (res && res.sessionToken) { difySessionToken = res.sessionToken; sessionStorage.setItem('dify_flashcard_token', difySessionToken); }
+          if (res && res.answer) { el('input').value = res.answer; renderDeck(res.answer); }
+        })
+        .withFailureHandler(err => { el('askDifyBtn').disabled = false; el('message').textContent = 'Lỗi gọi Dify: ' + err.message; })
+        .lookupMeaningOrFlashcard({ mode: 'flashcard', query: queryText, sessionToken: difySessionToken });
+    };
+    el('aiPromptInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el('askDifyBtn').click(); } });
+    function flip() { setFlipped(!el('card').classList.contains('flipped')); }
+    el('card').onclick = event => { if (event.target.closest('button')) return; const selection = window.getSelection(); if (selection && selection.toString().trim()) return; flip(); };
+    el('card').onkeydown = event => { if (event.target !== el('card')) return; if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); flip(); } };
+    document.addEventListener('keydown', event => {
+      if (el('study').hidden) return; const tag = document.activeElement ? document.activeElement.tagName : ''; if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (event.key === 'ArrowLeft' && index > 0) { event.preventDefault(); index--; showCard(); } else if (event.key === 'ArrowRight' && index < cards.length - 1) { event.preventDefault(); index++; showCard(); }
+    });
+    el('speak').onclick = event => {
+      event.stopPropagation(); const word = el('word').textContent.trim(); if (!word) return;
+      if (!('speechSynthesis' in window)) { el('message').textContent = 'Trình duyệt không hỗ trợ đọc.'; return; }
+      stopSpeech(); const speech = new SpeechSynthesisUtterance(word); speech.lang = 'en-GB'; speech.rate = 0.85; speech.pitch = 1;
+      const voices = window.speechSynthesis.getVoices(); const voice = voices.find(v => /^en[-_]GB$/i.test(v.lang)) || voices.find(v => /^en\b/i.test(v.lang)); if (voice) speech.voice = voice;
+      window.speechSynthesis.speak(speech);
+    };
+    el('previous').onclick = () => { if (index > 0) { index--; showCard(); } };
+    el('next').onclick = () => { if (index < cards.length - 1) { index++; showCard(); } };
+    function vietnameseTarget(text, meaning) {
+      const lower = text.toLocaleLowerCase('vi'); if (meaning && lower.includes(meaning.toLocaleLowerCase('vi'))) return meaning;
+      const words = meaning.match(/[\p{L}\p{M}]+/gu) || [];
+      for (let length = words.length - 1; length >= 2; length--) {
+        for (let start = 0; start + length <= words.length; start++) {
+          const phrase = words.slice(start, start + length).join(' ');
+          if (lower.includes(phrase.toLocaleLowerCase('vi'))) return phrase;
+        }
+      } return '';
+    }
+    function highlightText(id, text, target) {
+      const node = el(id); node.replaceChildren(); const start = target ? text.toLocaleLowerCase().indexOf(target.toLocaleLowerCase()) : -1;
+      if (start < 0) { node.textContent = text; return; }
+      node.append(document.createTextNode(text.slice(0, start))); const bold = document.createElement('strong'); bold.textContent = text.slice(start, start + target.length); node.append(bold, document.createTextNode(text.slice(start + target.length)));
+    }
+    // Canvas drawing helpers...
+    function drawCloud(ctx, x, y, width, height) { ctx.save(); ctx.translate(x, y); ctx.scale(width / 116, height / 52); ctx.beginPath(); ctx.moveTo(1, 51); ctx.bezierCurveTo(1, 37, 12, 27, 25, 31); ctx.bezierCurveTo(28, 14, 40, 2, 57, 2); ctx.bezierCurveTo(74, 2, 87, 14, 90, 31); ctx.bezierCurveTo(104, 24, 115, 36, 115, 51); ctx.closePath(); ctx.fillStyle = '#eee5ff'; ctx.fill(); ctx.restore(); }
+    function roundedBox(ctx, x, y, w, h, radius, fill) { ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fillStyle = fill; ctx.fill(); }
+    function wrappedLines(ctx, text, maxWidth) {
+      const lines = [];
+      for (const paragraph of String(text).split('\n')) {
+        let line = '';
+        for (const word of paragraph.split(/\s+/)) {
+          if (!word) continue;
+          if (ctx.measureText(line ? line + ' ' + word : word).width <= maxWidth) line += (line ? ' ' : '') + word;
+          else { if (line) lines.push(line); line = ''; for (const char of word) { if (line && ctx.measureText(line + char).width > maxWidth) { lines.push(line); line = ''; } line += char; } }
+        } lines.push(line);
+      } return lines;
+    }
+    function fittedText(ctx, text, x, y, width, height, size, minSize, color, family, bold, align, emphasis = '') {
+      if (!text) return; text = text.replace(/\s+/g, ' ').trim(); let lines, step;
+      do { ctx.font = `${bold || emphasis ? 'bold ' : ''}${emphasis ? 'italic ' : ''}${size}px ${family}`; lines = wrappedLines(ctx, text, width); step = size * 1.3; if (lines.length * step <= height) break; size--; } while (size >= minSize);
+      ctx.fillStyle = color; ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle'; const top = y + (height - lines.length * step) / 2 + step / 2; const emphasisStart = emphasis ? text.toLocaleLowerCase().indexOf(emphasis.toLocaleLowerCase()) : -1; let cursor = 0;
+      lines.forEach((line, n) => {
+        const lineStart = text.indexOf(line, cursor); cursor = lineStart + line.length; const from = Math.max(0, emphasisStart - lineStart); const to = Math.min(line.length, emphasisStart + emphasis.length - lineStart);
+        if (emphasisStart < 0 || from >= to) { ctx.font = `${bold ? 'bold ' : ''}${size}px ${family}`; ctx.fillText(line, x, top + n * step); return; }
+        const parts = [[line.slice(0, from), bold, false], [line.slice(from, to), true, true], [line.slice(to), bold, false]]; let left = x;
+        for (const [part, heavy, italic] of parts) { ctx.font = `${heavy ? 'bold ' : ''}${italic ? 'italic ' : ''}${size}px ${family}`; ctx.fillText(part, left, top + n * step); left += ctx.measureText(part).width; }
+      });
+    }
+    async function exportFlashcard(side) {
+      if (!cards.length) return; const item = cards[index], cardNumber = index + 1; const front = item.front || {}, back = item.back || {}; const word = asText(back.word) || asText(item.answer_key); const buttons = [el('downloadFront'), el('downloadBack')]; buttons.forEach(b => b.disabled = true); el('downloadStatus').textContent = 'Đang tạo ảnh PNG…';
+      try {
+        const canvas = document.createElement('canvas'); canvas.width = 1000; canvas.height = 605; const ctx = canvas.getContext('2d'); ctx.save(); ctx.beginPath(); ctx.roundRect(0, 0, 1000, 605, 36); ctx.clip(); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 1000, 605); const gradient = ctx.createLinearGradient(0, 0, 1000, 88); gradient.addColorStop(0, '#a98bd7'); gradient.addColorStop(1, '#9d7ed0'); ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1000, 88); let missingImage = false;
+        if (side === 'back') {
+          fittedText(ctx, 'V O C A B U L A R Y', 500, 14, 700, 60, 27, 18, '#fff', 'Arial', true, 'center'); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(180,44); ctx.lineTo(270,44); ctx.moveTo(730,44); ctx.lineTo(820,44); ctx.stroke(); drawCloud(ctx, 25, 96, 116, 52); drawCloud(ctx, 130, 143, 94, 42); ctx.save(); ctx.translate(0, -20); ctx.strokeStyle = '#b77aff'; ctx.beginPath(); ctx.moveTo(500,225); ctx.lineTo(500,405); ctx.stroke(); fittedText(ctx, word, 35, 210, 435, 150, 115, 24, '#071e50', 'Georgia', true); const pos = asText(back.part_of_speech), pronunciation = asText(back.pronunciation); if (pos) { roundedBox(ctx, 35, 355, 110, 45, 27, '#f0e8fc'); fittedText(ctx, pos, 90, 355, 100, 45, 23, 12, '#7000c9', 'Arial', true, 'center'); } if (pronunciation) { roundedBox(ctx, 160, 355, 260, 45, 27, '#f4efff'); fittedText(ctx, pronunciation, 290, 355, 240, 45, 25, 12, '#071e50', 'Arial', false, 'center'); } roundedBox(ctx, 530, 225, 425, 180, 30, '#f0e8fc'); fittedText(ctx, asText(back.meaning_vi), 742, 235, 380, 160, 48, 16, '#7000c9', 'Georgia', true, 'center'); ctx.restore(); const en = asText(back.example_en), vi = asText(back.example_vi); if (en || vi) { roundedBox(ctx, 35, 435, 930, 150, 26, '#f0e8fc'); fittedText(ctx, 'Example:', 60, 450, 125, 50, 25, 20, '#7000c9', 'Georgia', true); fittedText(ctx, en, 190, 450, 745, vi ? 55 : 115, 30, 14, '#071e50', 'Georgia', false, 'left', word); if (vi) fittedText(ctx, vi, 190, 515, 745, 55, 30, 14, '#7000c9', 'Arial, Tahoma, sans-serif', false, 'left', vietnameseTarget(vi, asText(back.meaning_vi))); }
+        } else {
+          fittedText(ctx, asText(front.topic) || 'TRAFFIC & VEHICLES', 35, 10, 930, 68, 27, 16, '#fff', 'Arial', true); try { let img = await resolveCardImage(item); if (!img.src.startsWith('data:image/')) img = await loadImageElement(img.src, true); const scale = Math.min(900 / img.naturalWidth, 320 / img.naturalHeight); const w = img.naturalWidth * scale, h = img.naturalHeight * scale; ctx.drawImage(img, (1000-w)/2, 110+(320-h)/2, w, h); } catch (_) { missingImage = true; } if (missingImage) fittedText(ctx, 'Hình minh hoạ không khả dụng.', 500, 240, 850, 100, 24, 18, '#76658f', 'Arial', false, 'center'); fittedText(ctx, asText(front.question) || 'What is this?', 500, 465, 920, 105, 60, 18, '#071e50', 'Arial', true, 'center');
+        } ctx.restore(); const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png')); if (!blob) throw new Error('Lỗi PNG.'); const link = document.createElement('a'), objectUrl = URL.createObjectURL(blob); link.href = objectUrl; link.download = `flashcard-${cardNumber}-${(word||'flashcard').replace(/[^a-zA-Z0-9_-]+/g,'-')}-${side}.png`; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(objectUrl), 30000); el('downloadStatus').textContent = missingImage ? 'Tạo PNG thành công (thiếu ảnh Drive).' : 'Đã tạo ảnh PNG.';
+      } catch (error) { el('downloadStatus').textContent = 'Lỗi: ' + error.message; } finally { buttons.forEach(b => b.disabled = false); }
+    }
+    el('downloadFront').onclick = () => exportFlashcard('front'); el('downloadBack').onclick = () => exportFlashcard('back');
+    window.addEventListener('resize', updateCardLayout); window.addEventListener('pagehide', stopSpeech);
+  </script>
+
+  <!-- PracticeType Script -->
+  <script>
+    'use strict';
+    let practiceSessionToken = sessionStorage.getItem('dify_practice_token') || '';
+    let selectedTypes = [];
+    document.querySelectorAll('.choice').forEach(btn => {
+      btn.onclick = () => {
+        const typeId = parseInt(btn.getAttribute('data-type'));
+        const isPressed = btn.getAttribute('aria-pressed') === 'true';
+        if (typeId === 11 || typeId === 6) {
+          document.querySelectorAll('.choice').forEach(b => b.setAttribute('aria-pressed', 'false'));
+          selectedTypes = [typeId]; btn.setAttribute('aria-pressed', 'true');
+        } else {
+          document.querySelectorAll('.choice[data-type="6"], .choice[data-type="11"]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+          if (isPressed) { btn.setAttribute('aria-pressed', 'false'); selectedTypes = selectedTypes.filter(t => t !== typeId); }
+          else { btn.setAttribute('aria-pressed', 'true'); selectedTypes.push(typeId); }
+        }
+        updatePracticeState();
+      };
+    });
+    function updatePracticeState() {
+      const btn = document.getElementById('startPracticeBtn');
+      const status = document.getElementById('practiceStatus');
+      if (selectedTypes.length > 0) { btn.disabled = false; status.textContent = `Đã chọn ${selectedTypes.length} dạng bài tập.`; }
+      else { btn.disabled = true; status.textContent = 'Vui lòng chọn ít nhất một dạng bài tập.'; }
+    }
+    document.getElementById('startPracticeBtn').onclick = () => {
+      const topic = document.getElementById('practiceTopic').value.trim();
+      const words = document.getElementById('practiceWords').value.trim();
+      const status = document.getElementById('practiceStatus');
+      if (!topic && !words) { status.textContent = '⚠️ Vui lòng nhập chủ đề hoặc từ vựng mục tiêu!'; document.getElementById('practiceTopic').focus(); return; }
+      const startBtn = document.getElementById('startPracticeBtn');
+      startBtn.disabled = true; status.textContent = '⏳ Đang sinh bài tập...';
+      google.script.run
+        .withSuccessHandler(res => {
+          startBtn.disabled = false; status.textContent = '✅ Đã tạo bài tập!';
+          if (res && res.sessionToken) { practiceSessionToken = res.sessionToken; sessionStorage.setItem('dify_practice_token', practiceSessionToken); }
+          displayPracticeAnswer(res.answer);
+        })
+        .withFailureHandler(err => { startBtn.disabled = false; status.textContent = '❌ Lỗi: ' + (err.message || err); })
+        .generatePractice({ selectedTypes: selectedTypes, topic: topic, words: words });
+    };
+    function displayPracticeAnswer(answerText) {
+      const box = document.getElementById('practiceOutputBox');
+      document.getElementById('practiceContent').innerHTML = marked.parse(answerText || '');
+      box.classList.remove('hidden');
+    }
+    document.getElementById('practiceReplyBtn').onclick = () => {
+      const replyInput = document.getElementById('practiceReplyInput');
+      const message = replyInput.value.trim(); if (!message) return;
+      replyInput.value = '';
+      const status = document.getElementById('practiceStatus'); status.textContent = '⏳ Đang gửi...';
+      google.script.run
+        .withSuccessHandler(res => { status.textContent = '✅ Đã nhận phản hồi!'; displayPracticeAnswer(res.answer); })
+        .withFailureHandler(err => { status.textContent = '❌ Lỗi: ' + (err.message || err); })
+        .replyPractice({ message: message, sessionToken: practiceSessionToken });
+    };
+  </script>
+</body>
+</html>
