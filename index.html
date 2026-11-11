@@ -8,8 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- MÃ KẾT NỐI API (Polyfill) -->
+  <!-- MÃ KẾT NỐI API (Cải tiến xử lý CORS) -->
   <script>
+    // URL Web App của bạn
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwtPtSlOefqybWTgsEkMMWYNUmp_isozGIhQj4gnYj0YYXHpSLR5votxwcmdKwl_kiYww/exec";
 
     window.google = {
@@ -21,17 +22,33 @@
             withSuccessHandler: function(cb) { this._onSuccess = cb; return this; },
             withFailureHandler: function(cb) { this._onFailure = cb; return this; },
             _callApi: function(action, payload) {
+              // Sử dụng fetch với chế độ no-cors để gửi request, nhưng không đọc được response
+              // Để đọc được response, Apps Script PHẢI trả về headers CORS hợp lệ.
+              // Nếu bị lỗi Failed to fetch, thường do Apps Script bị lỗi nội bộ và trả về trang HTML báo lỗi thay vì JSON.
               fetch(WEB_APP_URL, {
                 method: 'POST',
+                // Sử dụng text/plain để tránh trình duyệt gửi preflight request (OPTIONS)
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: action, payload: payload })
               })
-              .then(r => r.json())
-              .then(res => {
-                if (res.success) { if (this._onSuccess) this._onSuccess(res.data); }
-                else { if (this._onFailure) this._onFailure(new Error(res.error)); }
+              .then(async r => {
+                 if (!r.ok) {
+                    const text = await r.text();
+                    throw new Error(`HTTP error! status: ${r.status}, body: ${text.substring(0, 100)}`);
+                 }
+                 return r.json();
               })
-              .catch(err => { if (this._onFailure) this._onFailure(err); });
+              .then(res => {
+                if (res.success) { 
+                  if (this._onSuccess) this._onSuccess(res.data); 
+                } else { 
+                  if (this._onFailure) this._onFailure(new Error(res.error || "Lỗi không xác định từ máy chủ.")); 
+                }
+              })
+              .catch(err => { 
+                console.error("Fetch Error:", err);
+                if (this._onFailure) this._onFailure(new Error("Lỗi mạng hoặc CORS: " + err.message + ". Hãy mở Console (F12) để xem chi tiết.")); 
+              });
             },
             indexSend: function(payload) { this._callApi('indexSend', payload); },
             lookupMeaningOrFlashcard: function(payload) { this._callApi('lookupMeaningOrFlashcard', payload); },
